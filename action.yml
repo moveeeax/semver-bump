@@ -1,0 +1,71 @@
+name: "semver-bump"
+description: "Derive the next semantic version and changelog from Conventional Commits and optionally tag."
+author: "Michael Tarassov"
+branding:
+  icon: "tag"
+  color: "purple"
+
+inputs:
+  tag:
+    description: "Create the git tag and update the changelog (otherwise dry-run)."
+    required: false
+    default: "false"
+  prerelease:
+    description: "Prerelease channel to append, e.g. rc or beta."
+    required: false
+    default: ""
+  repo:
+    description: "Path to the repository to analyse."
+    required: false
+    default: "."
+  go-version:
+    description: "Go toolchain used to build the tool."
+    required: false
+    default: "1.22"
+
+outputs:
+  next:
+    description: "The computed next version (e.g. 1.4.0)."
+    value: ${{ steps.run.outputs.next }}
+  next-tag:
+    description: "The next version prefixed with v (e.g. v1.4.0)."
+    value: ${{ steps.run.outputs.next_tag }}
+  level:
+    description: "Bump level: none, patch, minor or major."
+    value: ${{ steps.run.outputs.level }}
+  has-changes:
+    description: "Whether there are release-worthy changes since the last tag."
+    value: ${{ steps.run.outputs.has_changes }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+
+    - name: Run semver-bump
+      id: run
+      shell: bash
+      run: |
+        set -euo pipefail
+        bin="$(mktemp -d)/semver-bump"
+        go build -C "${{ github.action_path }}" -o "$bin" .
+
+        json="$("$bin" --repo "${{ inputs.repo }}" --prerelease "${{ inputs.prerelease }}" --json)"
+        echo "$json"
+        next="$(echo "$json" | jq -r .next)"
+        next_tag="$(echo "$json" | jq -r .next_tag)"
+        level="$(echo "$json" | jq -r .level)"
+        has="$(echo "$json" | jq -r .has_changes)"
+        {
+          echo "next=$next"
+          echo "next_tag=$next_tag"
+          echo "level=$level"
+          echo "has_changes=$has"
+        } >> "$GITHUB_OUTPUT"
+
+        if [ "${{ inputs.tag }}" = "true" ] && [ "$has" = "true" ]; then
+          "$bin" --repo "${{ inputs.repo }}" --prerelease "${{ inputs.prerelease }}" --tag
+        fi
