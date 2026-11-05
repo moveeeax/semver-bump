@@ -21,7 +21,7 @@ inputs:
   go-version:
     description: "Go toolchain used to build the tool."
     required: false
-    default: "1.22"
+    default: "1.27"
 
 outputs:
   next:
@@ -41,7 +41,7 @@ runs:
   using: "composite"
   steps:
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v7
       with:
         go-version: ${{ inputs.go-version }}
 
