@@ -1,7 +1,7 @@
 # semver-bump
 
 [![CI](https://github.com/moveeeax/semver-bump/actions/workflows/ci.yml/badge.svg)](https://github.com/moveeeax/semver-bump/actions/workflows/ci.yml)
-[![Go](https://img.shields.io/badge/go-1.22%2B-00ADD8?logo=go)](https://go.dev)
+[![Go](https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > Let your commit history decide the next version — and write the changelog for you.
@@ -114,7 +114,7 @@ semver-bump --json | jq -r .next_tag
 Use the bundled composite action to cut releases from your pipeline:
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
   with:
     fetch-depth: 0            # full history + tags are required
 - id: bump
