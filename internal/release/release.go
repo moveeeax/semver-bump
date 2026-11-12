@@ -4,6 +4,7 @@
 package release
 
 import (
+	"regexp"
 	"time"
 
 	"github.com/moveeeax/semver-bump/internal/bump"
@@ -18,6 +19,13 @@ type Options struct {
 	Prerelease     string    // e.g. "rc"; appended as "<pre>.1" on a bump
 	AllowMajorZero bool      // permit a real 1.0.0 bump out of 0.x
 	Now            time.Time // date stamp for the changelog (defaults to today)
+
+	// PullRequests switches the changelog and the bump decision to merged pull
+	// request titles and labels. nil keeps the commit-based behaviour.
+	PullRequests PRSource
+	// BotPattern matches author logins that are not credited (in addition to
+	// accounts GitHub reports as bots). nil means DefaultBotPattern.
+	BotPattern *regexp.Regexp
 }
 
 // Plan is the result of analysing the repository. Nothing is written yet.
@@ -27,7 +35,8 @@ type Plan struct {
 	NextVersion      semver.Version
 	Level            bump.Level
 	Commits          []conventional.Commit
-	Skipped          int // non-conventional commits ignored
+	Skipped          int // non-conventional commits (or pull requests) ignored
+	PullRequests     int // merged pull requests found; PR mode only
 	ChangelogSection string
 	HasChanges       bool
 }
@@ -55,11 +64,18 @@ func Compute(r gitrepo.Repo, opt Options) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	for _, rc := range raw {
-		if c, ok := conventional.ParseWithHash(rc.Hash, rc.Message); ok {
-			p.Commits = append(p.Commits, c)
-		} else {
-			p.Skipped++
+	if opt.PullRequests != nil {
+		p.Commits, p.PullRequests, p.Skipped, err = fromPullRequests(opt.PullRequests, raw, opt.BotPattern)
+		if err != nil {
+			return Plan{}, err
+		}
+	} else {
+		for _, rc := range raw {
+			if c, ok := conventional.ParseWithHash(rc.Hash, rc.Message); ok {
+				p.Commits = append(p.Commits, c)
+			} else {
+				p.Skipped++
+			}
 		}
 	}
 

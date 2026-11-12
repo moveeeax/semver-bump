@@ -15,8 +15,9 @@ import (
 
 // RawCommit is a commit reduced to what the tool needs.
 type RawCommit struct {
-	Hash    string // short hash
-	Message string // full commit message
+	Hash     string // short hash
+	FullHash string // full 40-character hash, used to look up pull requests
+	Message  string // full commit message
 }
 
 // TagRef pairs a tag's name with its parsed version.
@@ -106,7 +107,7 @@ func (g *GitRepo) CommitsSince(tag string) ([]RawCommit, error) {
 		if !stop.IsZero() && c.Hash == stop {
 			return storer(nil) // stop the walk
 		}
-		out = append(out, RawCommit{Hash: c.Hash.String()[:7], Message: c.Message})
+		out = append(out, RawCommit{Hash: c.Hash.String()[:7], FullHash: c.Hash.String(), Message: c.Message})
 		return nil
 	})
 	if err != nil && err != errStop {
@@ -125,6 +126,19 @@ func (g *GitRepo) CreateTag(name, message string) error {
 		Message: message,
 	})
 	return err
+}
+
+// RemoteURL returns the first URL configured for the named remote.
+func (g *GitRepo) RemoteURL(name string) (string, error) {
+	rem, err := g.repo.Remote(name)
+	if err != nil {
+		return "", fmt.Errorf("remote %q: %w", name, err)
+	}
+	urls := rem.Config().URLs
+	if len(urls) == 0 {
+		return "", fmt.Errorf("remote %q has no URL", name)
+	}
+	return urls[0], nil
 }
 
 // errStop unwinds ForEach once the boundary commit is reached.

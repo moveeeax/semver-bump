@@ -27,6 +27,9 @@ that fix was a patch or a minor. The commits already carry the answer.
   Bug Fixes and friends, sorted by scope.
 - **Tags** the new version as an annotated git tag — but only with `--tag`; the
   default is a safe dry-run.
+- **Optionally reads pull requests** instead of commits
+  (`--changelog-source prs`): one entry per merged PR, typed from its title or
+  labels, with author credits.
 - **Automates** releases through a composite GitHub Action (`action.yml`).
 
 ## How it works
@@ -108,6 +111,50 @@ semver-bump --json | jq -r .next_tag
 | `--changelog` | `CHANGELOG.md` | Changelog file updated with `--tag` |
 | `--allow-major-zero` | `false` | Allow a breaking change in `0.x` to bump to `1.0.0` |
 | `--json` | `false` | Print the plan as JSON |
+| `--changelog-source` | `commits` | `commits`, or `prs` to build entries from merged pull requests |
+| `--github-repo` | | `owner/name` for `prs`; defaults to `$GITHUB_REPOSITORY`, then the `origin` remote |
+| `--github-api` | | REST API base URL; defaults to `$GITHUB_API_URL`, then `https://api.github.com` |
+| `--bot-pattern` | `\[bot\]$` | Regexp of logins that are not credited in `prs` mode |
+
+### Changelog from pull requests
+
+With `--changelog-source prs` the commits since the last tag are still read
+from the local clone, but each one is looked up on GitHub
+(`GET /repos/{owner}/{repo}/commits/{sha}/pulls`) and replaced by the merged
+pull request it belongs to. A PR with several commits gives one entry; a commit
+with no merged PR (a direct push) is parsed from its message as usual.
+
+- The type, scope and `!` come from the PR title, parsed as a Conventional
+  Commit header. A label `type: <type>` (for example `type: fix`) overrides the
+  type and makes a free-form title usable as the description.
+- A `breaking-change` label marks the PR breaking even without `!`.
+- The bump level is computed from these PR entries, so labels can raise it.
+- Entries end with `(#12) by @alice`. An author whose PR is their first merged
+  one in the repository gets `(first contribution)` on that entry, checked with
+  one issue-search call per author. Accounts GitHub reports as bots, and logins
+  matching `--bot-pattern`, are listed without a credit.
+
+The token is read from `GITHUB_TOKEN` or `GH_TOKEN`. Unauthenticated calls work
+for public repositories but share GitHub's low anonymous rate limit.
+
+```console
+$ GITHUB_TOKEN=... semver-bump --changelog-source prs
+Previous tag:   v1.3.0
+Pull requests:  2 merged
+Entries parsed: 2 (0 ignored)
+Bump level:     minor
+Next version:   1.4.0
+
+## 1.4.0 - 2026-11-12
+
+### Features
+
+- **cli:** add --dry flag (#41) by @alice
+
+### Bug Fixes
+
+- handle empty tags (#42) by @bob (first contribution)
+```
 
 ## GitHub Action
 
@@ -125,7 +172,12 @@ Use the bundled composite action to cut releases from your pipeline:
   run: git push origin ${{ steps.bump.outputs.next-tag }}
 ```
 
-Outputs: `next`, `next-tag`, `level`, `has-changes`. A full example lives in
+Inputs: `tag`, `prerelease`, `repo`, `changelog-source` (`commits` or `prs`),
+`github-repo`, `github-token` (defaults to the workflow token; `prs` needs
+`pull-requests: read`) and `go-version`.
+
+Outputs: `next`, `next-tag`, `level`, `has-changes` and `changelog` (the
+rendered section, ready for a release body). A full example lives in
 [`examples/release.yml`](examples/release.yml).
 
 ## Development

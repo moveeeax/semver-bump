@@ -18,6 +18,18 @@ inputs:
     description: "Path to the repository to analyse."
     required: false
     default: "."
+  changelog-source:
+    description: "Where changelog entries come from: commits, or prs (merged pull request titles and labels)."
+    required: false
+    default: "commits"
+  github-repo:
+    description: "owner/name to read pull requests from with changelog-source prs. Defaults to the workflow's repository."
+    required: false
+    default: ""
+  github-token:
+    description: "Token for the GitHub API with changelog-source prs; needs pull-requests: read."
+    required: false
+    default: ${{ github.token }}
   go-version:
     description: "Go toolchain used to build the tool."
     required: false
@@ -36,6 +48,9 @@ outputs:
   has-changes:
     description: "Whether there are release-worthy changes since the last tag."
     value: ${{ steps.run.outputs.has_changes }}
+  changelog:
+    description: "The rendered changelog section, usable as a release body."
+    value: ${{ steps.run.outputs.changelog }}
 
 runs:
   using: "composite"
@@ -48,12 +63,21 @@ runs:
     - name: Run semver-bump
       id: run
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        SB_SOURCE: ${{ inputs.changelog-source }}
+        SB_GITHUB_REPO: ${{ inputs.github-repo }}
       run: |
         set -euo pipefail
         bin="$(mktemp -d)/semver-bump"
         go build -C "${{ github.action_path }}" -o "$bin" .
 
-        json="$("$bin" --repo "${{ inputs.repo }}" --prerelease "${{ inputs.prerelease }}" --json)"
+        args=(--repo "${{ inputs.repo }}" --prerelease "${{ inputs.prerelease }}" --changelog-source "$SB_SOURCE")
+        if [ -n "$SB_GITHUB_REPO" ]; then
+          args+=(--github-repo "$SB_GITHUB_REPO")
+        fi
+
+        json="$("$bin" "${args[@]}" --json)"
         echo "$json"
         next="$(echo "$json" | jq -r .next)"
         next_tag="$(echo "$json" | jq -r .next_tag)"
@@ -64,8 +88,12 @@ runs:
           echo "next_tag=$next_tag"
           echo "level=$level"
           echo "has_changes=$has"
+          delim="EOF_$(openssl rand -hex 8)"
+          echo "changelog<<$delim"
+          echo "$json" | jq -r .changelog
+          echo "$delim"
         } >> "$GITHUB_OUTPUT"
 
         if [ "${{ inputs.tag }}" = "true" ] && [ "$has" = "true" ]; then
-          "$bin" --repo "${{ inputs.repo }}" --prerelease "${{ inputs.prerelease }}" --tag
+          "$bin" "${args[@]}" --tag
         fi

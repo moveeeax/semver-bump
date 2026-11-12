@@ -16,6 +16,11 @@ type Commit struct {
 	Description string // the summary text after the colon
 	Body        string // everything after the header, trimmed
 	Hash        string // short commit hash, when known
+
+	// Set only when the entry comes from a pull request rather than a commit.
+	PR                int    // pull request number
+	Author            string // GitHub login to credit; empty for bots
+	FirstContribution bool   // the author's first merged pull request in the repo
 }
 
 // headerRe matches "type(scope)!: description". Scope and the "!" are optional.
