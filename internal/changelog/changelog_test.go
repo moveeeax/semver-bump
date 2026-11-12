@@ -85,3 +85,20 @@ func TestPrependExisting(t *testing.T) {
 		t.Error("header should appear exactly once")
 	}
 }
+
+func TestRenderPullRequestCredits(t *testing.T) {
+	got := Render("1.1.0", "2026-07-26", []conventional.Commit{
+		{Type: "feat", Scope: "cli", Description: "add flag", PR: 12, Author: "alice"},
+		{Type: "fix", Description: "edge case", PR: 13, Author: "bob", FirstContribution: true},
+		{Type: "fix", Description: "bot fix", PR: 14},
+	})
+	for _, want := range []string{
+		"- **cli:** add flag (#12) by @alice\n",
+		"- edge case (#13) by @bob (first contribution)\n",
+		"- bot fix (#14)\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q:\n%s", want, got)
+		}
+	}
+}

@@ -86,10 +86,19 @@ func bullet(c conventional.Commit) string {
 	if c.Scope != "" {
 		desc = fmt.Sprintf("**%s:** %s", c.Scope, desc)
 	}
-	if c.Hash != "" {
-		return fmt.Sprintf("- %s (%s)\n", desc, c.Hash)
+	switch {
+	case c.PR > 0:
+		desc += fmt.Sprintf(" (#%d)", c.PR)
+	case c.Hash != "":
+		desc += fmt.Sprintf(" (%s)", c.Hash)
 	}
-	return fmt.Sprintf("- %s\n", desc)
+	if c.Author != "" {
+		desc += " by @" + c.Author
+		if c.FirstContribution {
+			desc += " (first contribution)"
+		}
+	}
+	return "- " + desc + "\n"
 }
 
 func filterTypes(commits []conventional.Commit, types []string) []conventional.Commit {

@@ -1,6 +1,7 @@
 # Example consumer workflow: on every push to main, work out the next version
 # from Conventional Commits and, when there is something to release, create the
-# tag and updated changelog. Drop this into .github/workflows/ of your repo.
+# tag and updated changelog, then publish a GitHub release whose body lists the
+# merged pull requests. Drop this into .github/workflows/ of your repo.
 name: Release
 
 on:
@@ -9,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   release:
@@ -22,7 +24,16 @@ jobs:
         uses: moveeeax/semver-bump@v1
         with:
           tag: "true"
+          changelog-source: prs
 
       - name: Push the new tag
         if: steps.bump.outputs.has-changes == 'true'
         run: git push origin ${{ steps.bump.outputs.next-tag }}
+
+      - name: Create the GitHub release
+        if: steps.bump.outputs.has-changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.bump.outputs.next-tag }}
+          NOTES: ${{ steps.bump.outputs.changelog }}
+        run: gh release create "$TAG" --title "$TAG" --notes "$NOTES"
